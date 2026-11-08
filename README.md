@@ -2,7 +2,7 @@
 
 Reproducibility code for **A Monte Carlo procedure for quantifying the robustness of causal inference for a potential missing confounder**.
 
-This repository contains the complete R implementation for the two illustrative examples, Figures 1 and 2, and the 100-run statistics for Appendix Table A3.
+This repository contains the complete R implementation for the two illustrative examples, Figures 1 and 2, the 100-run statistics for Appendix A.5 Table A3, and the kindergarten-retention minimum-effect-size sensitivity analysis for Appendix A.6 Table A4.
 
 ## Run the analysis
 
@@ -12,22 +12,29 @@ Download the repository or clone it, open a terminal in the repository directory
 
 ```sh
 Rscript PMC_final.R
+Rscript PMC_A6_minimum_effect.R
 ```
 
 Alternatively, in R or RStudio:
 
 ```r
 source("PMC_final.R")
+source("PMC_A6_minimum_effect.R")
 ```
 
-The script writes the summary CSV and both figures beside itself, replacing the included reference outputs. It prints correlation reconstruction and numerical stability diagnostics to the console. A complete run took about one minute on the reference machine; runtime varies by hardware.
+Run `PMC_final.R` first to reproduce Table A3 and Figures 1 and 2, then `PMC_A6_minimum_effect.R` to reproduce Table A4. The scripts are standalone and do not depend on each other's output files.
+
+`PMC_final.R` writes the original summary CSV and both figures beside itself, replacing the included reference outputs. It prints correlation reconstruction and numerical stability diagnostics to the console. Its complete run took about one minute on the reference machine; runtime varies by hardware. `PMC_A6_minimum_effect.R` writes the Table A4 CSV and the additional A.6 diagnostics listed below beside itself; it does not write the original Table A3 CSV or figures.
 
 ## Files
 
 | File | Contents |
 | --- | --- |
 | `PMC_final.R` | Standalone computation, 1,000 correlation simulations, four 100-run scenarios, and figure generation |
-| `PMC_MC_100run_summary.csv` | Table A3 estimates, SD, MCSE, admissible-pair counts, and first/last-half diagnostics |
+| `PMC_A6_minimum_effect.R` | Standalone Appendix A.6 minimum-effect analysis for kindergarten retention, 100 runs per prior |
+| `PMC_MC_100run_summary.csv` | Appendix A.5 Table A3 estimates, SD, MCSE, admissible-pair counts, and first/last-half diagnostics |
+| `PMC_A6_minimum_effect_summary.csv` | Appendix A.6 Table A4: original NHST and minimum-effect directional-power scenario proportions, SD, MCSE, and admissible counts |
+| `README.md` | Running order, R version, random seeds, model scope, and correspondence between scripts and appendix tables |
 | `Figure1_Retention_Priors_Comparison_BW_Legend.pdf` / `.png` | Kindergarten retention, full and restricted priors |
 | `Figure2_Education_Priors_Comparison_BW_Legend.pdf` / `.png` | Educational attainment, full and restricted priors |
 
@@ -72,6 +79,54 @@ p_mc = Phi(direction * q / sqrt(D / nu) - 1.96)
 The final estimate is the arithmetic mean of 100 per-run conditional proportions. SD measures variability across complete runs. MCSE of the 100-run mean is SD/sqrt(100), not SD. Cross-combined pairs share marginal draws and are not independent Bernoulli observations; admissible-pair counts are not effective independent sample sizes. First/last-half comparisons are descriptive stability diagnostics, not a proof of convergence.
 
 Figure labels use these 100-run means rounded to two decimal places: 0.68, 0.84, 0.82, and 1.00. The last value is rounded from 0.995132 and does not mean exactly 100%. The earlier restricted-prior retention value 0.847420 was a single-run estimate; the final repeated-run mean is 0.83659422.
+
+## Appendix A.6 minimum-effect-size analysis and Table A4
+
+Run `Rscript PMC_A6_minimum_effect.R` to reproduce the included `PMC_A6_minimum_effect_summary.csv`. This extension is restricted to kindergarten retention and preserves the original working correlations, residual degrees of freedom, admissible region, cutoff 1.96, and two uniform nominal priors. Each run draws 1,000 values for each correlation and forms their Cartesian product; the calculation is repeated 100 times per prior. It uses Mersenne-Twister / Inversion / Rejection, resets seed 123 once before the full prior, then runs the restricted prior without another reset, matching the retention portion of the original diagnostics stream.
+
+The illustrative minimum-effect threshold is `Delta = 0.20 * (9.01 / 0.67) = 2.689552...` reading-score points. The 0.67-SD description is approximate. Motivated by [Kraft (2020)](https://doi.org/10.3102/0013189X20912798), 0.20 SD is an analyst-selected sensitivity threshold; it is not a policy consensus or a universal minimum-effect standard.
+
+For clarity, the following notation uses `q` for the residual covariance before the omitted-confounder adjustment, and `A` for the adjusted numerator (the latter is called `q` in the original calculation above):
+
+```text
+q = -0.13 * sqrt((1 - 0.52^2) * (1 - 0.45^2))
+vx = 1 - 0.52^2 - a^2
+vy = 1 - 0.45^2 - b^2
+A = q - a*b
+D = vx*vy - A^2
+K = s_y / s_x
+beta_c = K * A / vx
+SE_c = K * sqrt(D / 7635) / vx
+p_mc = Phi(-beta_c / SE_c - 1.96)
+p_delta = Phi((-Delta - beta_c) / SE_c - 1.96)
+```
+
+These coefficient and conventional OLS standard-error formulas follow from the Schur complement and Frisch-Waugh-Lovell regression under the existing assumption that the omitted confounder is orthogonal to the observed covariates. Their ratio is exactly `A / sqrt(D / 7635)`, so the original pointwise power is unchanged. The minimum-effect test is `H0: beta_c >= -Delta` versus `H1: beta_c < -Delta`; retaining the 1.96 cutoff gives a directional normal-test size of approximately 0.025. The code holds the scenario-specific standard error fixed in this normal power approximation.
+
+The score scale is fixed from the supplied code's group sizes, reading means and within-group SDs. With `N = 7639`, the pooled-summary identity `s_y^2 = sum((n_g - 1)*s_g^2 + n_g*(mean_g - mean_y)^2)/(N - 1)` gives `s_y = 13.374335...`; binary retention gives `s_x = sqrt(N/(N - 1)*(471/N)*(7168/N)) = 0.240547789...`. Thus `K = 55.599493...`. This is an explicitly defined working scale, not a recovered exact source-study SD. The original study's multilevel coefficient and standard error cannot be identified from the three working correlations and these summaries. This extension does not refit that multilevel model or force its working coefficient to equal -9.01.
+
+The primary summary is `Pr(p_delta > 0.8 | admissible)`, averaged over the 100 per-run proportions. It is distinct from mean pointwise power and from filtering scenarios by a plug-in effect estimate.
+
+| Prior | Criterion | Mean scenario proportion | SD across runs | MCSE | Mean admissible count |
+| --- | --- | ---: | ---: | ---: | ---: |
+| U(-1,1) | Original NHST directional power | 0.678886 | 0.008726 | 0.000873 | 594,284.2 |
+| U(-1,1) | Minimum-effect directional power | 0.616517 | 0.008681 | 0.000868 | 594,284.2 |
+| U(-0.5,0.5) | Original NHST directional power | 0.836594 | 0.006524 | 0.000652 | 1,000,000 |
+| U(-0.5,0.5) | Minimum-effect directional power | 0.744388 | 0.007044 | 0.000704 | 1,000,000 |
+
+`PMC_A6_minimum_effect_summary.csv` contains these four Table A4 rows, with full numerical precision and additional diagnostic columns. `mean` is the mean scenario proportion; `mean_pointwise_power` is a separate quantity. MCSE equals the SD of 100 complete runs divided by 10. Within a run, the same configurations are reused across criteria; shared marginal draws mean the million candidate pairs are not independent observations.
+
+The script also regenerates these supporting files locally; they need not be downloaded separately:
+
+- `A6_runs_100.csv`: 100 runs per prior, with five criteria recorded on each run's common configurations (1,000 long-format rows, not 1,000 independent runs).
+- `A6_summary.csv`: all five criteria, including the original power, the primary minimum-effect power, a joint sampling-event power, a plug-in effect filter, and a working-SD threshold check.
+- `A5_baseline_reproduction.csv`: retention baseline comparison with Table A3, including precision and first/last-half checks.
+- `A6_comparison.csv`: new-minus-original paired differences and their run-based SD and MCSE.
+- `scale_audit.csv`, `A6_sampled_axes.rds`, and `sessionInfo.txt`: scale inputs, all sampled correlation axes, and the R environment.
+
+For the secondary joint sampling event, `B ~ N(beta_c, SE_c^2)` must satisfy both `B < -1.96*SE_c` and `B < -Delta`; its power is `Phi(-beta_c/SE_c - max(1.96, Delta/SE_c))`. The resulting scenario proportions are 0.647374 and 0.794357. The deterministic filter `p_mc > 0.8` and `-beta_c >= Delta` gives 0.658703 and 0.812550. Neither is the primary minimum-effect test. Using exactly 0.20 of the working SD instead gives `Delta = 2.674867...` points and primary proportions of 0.616914 and 0.745022; this is explicitly a different SD basis.
+
+The A.6 baseline was checked against the original evaluator for all 200 retention runs, and the coefficient/standard-error derivation was checked against direct `lm()` fits with exactly specified covariance matrices. The zero-threshold identity and pointwise ordering `p_delta <= p_joint <= p_mc` were also verified. Numerical repeatability validates the implementation within its working model; it does not supply the individual-level design, school covariance, weights, or confounder associations needed for an exact reanalysis of the original multilevel estimator.
 
 ## Correlation simulation for the retention example
 
