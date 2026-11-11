@@ -11,32 +11,32 @@ Only base R is required. The reference results were verified with R 4.5.0 on mac
 Download the repository or clone it, open a terminal in the repository directory, and run:
 
 ```sh
-Rscript PMC_final.R
-Rscript PMC_A6_minimum_effect.R
+Rscript robustness.R
+Rscript minimum_effect.R
 ```
 
 Alternatively, in R or RStudio:
 
 ```r
-source("PMC_final.R")
-source("PMC_A6_minimum_effect.R")
+source("robustness.R")
+source("minimum_effect.R")
 ```
 
-Run `PMC_final.R` first to reproduce Table A3 and Figures 1 and 2, then `PMC_A6_minimum_effect.R` to reproduce Table A4. The scripts are standalone and do not depend on each other's output files.
+Run `robustness.R` first to reproduce Table A3 and Figures 1 and 2, then `minimum_effect.R` to reproduce Table A4. The scripts are standalone and do not depend on each other's output files.
 
-`PMC_final.R` writes the original summary CSV and both figures beside itself, replacing the included reference outputs. It prints correlation reconstruction and numerical stability diagnostics to the console. Its complete run took about one minute on the reference machine; runtime varies by hardware. `PMC_A6_minimum_effect.R` writes the Table A4 CSV and the additional A.6 diagnostics listed below beside itself; it does not write the original Table A3 CSV or figures.
+`robustness.R` writes the original summary CSV and both figures beside itself, replacing the included reference outputs. It prints correlation reconstruction and numerical stability diagnostics to the console. Its complete run took about one minute on the reference machine; runtime varies by hardware. `minimum_effect.R` writes the Table A4 CSV and the additional A.6 diagnostics listed below beside itself; it does not write the original Table A3 CSV or figures.
 
 ## Files
 
 | File | Contents |
 | --- | --- |
-| `PMC_final.R` | Standalone computation, 1,000 correlation simulations, four 100-run scenarios, and figure generation |
-| `PMC_A6_minimum_effect.R` | Standalone Appendix A.6 minimum-effect analysis for kindergarten retention, 100 runs per prior |
-| `PMC_MC_100run_summary.csv` | Appendix A.5 Table A3 estimates, SD, MCSE, admissible-pair counts, and first/last-half diagnostics |
-| `PMC_A6_minimum_effect_summary.csv` | Appendix A.6 Table A4: original NHST and minimum-effect directional-power scenario proportions, SD, MCSE, and admissible counts |
+| `robustness.R` | Standalone computation, 1,000 correlation simulations, four 100-run scenarios, and figure generation |
+| `minimum_effect.R` | Standalone Appendix A.6 minimum-effect analysis for kindergarten retention, 100 runs per prior |
+| `robustness_summary.csv` | Appendix A.5 Table A3 estimates, SD, MCSE, admissible-pair counts, and first/last-half diagnostics |
+| `minimum_effect_summary.csv` | Appendix A.6 Table A4: original NHST and minimum-effect directional-power scenario proportions, SD, MCSE, and admissible counts |
 | `README.md` | Running order, R version, random seeds, model scope, and correspondence between scripts and appendix tables |
-| `Figure1_Retention_Priors_Comparison_BW_Legend.pdf` / `.png` | Kindergarten retention, full and restricted priors |
-| `Figure2_Education_Priors_Comparison_BW_Legend.pdf` / `.png` | Educational attainment, full and restricted priors |
+| `retention.pdf` / `.png` | Kindergarten retention, full and restricted priors |
+| `education.pdf` / `.png` | Educational attainment, full and restricted priors |
 
 PDF figures use vector contours and text; PNG figures are 7,200 by 4,200 pixels (12 by 7 inches at 600 DPI). Both retain the original monochrome contours, shading, and legend.
 
@@ -82,7 +82,7 @@ Figure labels use these 100-run means rounded to two decimal places: 0.68, 0.84,
 
 ## Appendix A.6 minimum-effect-size analysis and Table A4
 
-Run `Rscript PMC_A6_minimum_effect.R` to reproduce the included `PMC_A6_minimum_effect_summary.csv`. This extension is restricted to kindergarten retention and preserves the original working correlations, residual degrees of freedom, admissible region, cutoff 1.96, and two uniform nominal priors. Each run draws 1,000 values for each correlation and forms their Cartesian product; the calculation is repeated 100 times per prior. It uses Mersenne-Twister / Inversion / Rejection, resets seed 123 once before the full prior, then runs the restricted prior without another reset, matching the retention portion of the original diagnostics stream.
+Run `Rscript minimum_effect.R` to reproduce the included `minimum_effect_summary.csv`. This extension is restricted to kindergarten retention and preserves the original working correlations, residual degrees of freedom, admissible region, cutoff 1.96, and two uniform nominal priors. Each run draws 1,000 values for each correlation and forms their Cartesian product; the calculation is repeated 100 times per prior. It uses Mersenne-Twister / Inversion / Rejection, resets seed 123 once before the full prior, then runs the restricted prior without another reset, matching the retention portion of the original diagnostics stream.
 
 The illustrative minimum-effect threshold is `Delta = 0.20 * (9.01 / 0.67) = 2.689552...` reading-score points. The 0.67-SD description is approximate. Motivated by [Kraft (2020)](https://doi.org/10.3102/0013189X20912798), 0.20 SD is an analyst-selected sensitivity threshold; it is not a policy consensus or a universal minimum-effect standard.
 
@@ -114,7 +114,7 @@ The primary summary is `Pr(p_delta > 0.8 | admissible)`, averaged over the 100 p
 | U(-0.5,0.5) | Original NHST directional power | 0.836594 | 0.006524 | 0.000652 | 1,000,000 |
 | U(-0.5,0.5) | Minimum-effect directional power | 0.744388 | 0.007044 | 0.000704 | 1,000,000 |
 
-`PMC_A6_minimum_effect_summary.csv` contains these four Table A4 rows, with full numerical precision and additional diagnostic columns. `mean` is the mean scenario proportion; `mean_pointwise_power` is a separate quantity. MCSE equals the SD of 100 complete runs divided by 10. Within a run, the same configurations are reused across criteria; shared marginal draws mean the million candidate pairs are not independent observations.
+`minimum_effect_summary.csv` contains these four Table A4 rows, with full numerical precision and additional diagnostic columns. `mean` is the mean scenario proportion; `mean_pointwise_power` is a separate quantity. MCSE equals the SD of 100 complete runs divided by 10. Within a run, the same configurations are reused across criteria; shared marginal draws mean the million candidate pairs are not independent observations.
 
 The script also regenerates these supporting files locally; they need not be downloaded separately:
 

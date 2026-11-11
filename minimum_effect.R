@@ -1,13 +1,13 @@
 # Appendix A.6: Hong and Raudenbush (2005) retention illustration ONLY.
-# Base R; Rscript PMC_A6_minimum_effect.R [output_directory], or source().
+# Base R; Rscript minimum_effect.R [output_directory], or source().
 # Extends the supplied PMC working OLS model; does NOT refit the original HLM.
 # Original correlations, strict admissibility, df, cutoff, draws and RNG retained.
 # Main Delta uses the approximate literature conversion, not an exact known SD.
-# Table A4 is written to PMC_A6_minimum_effect_summary.csv; A6_summary.csv
+# Table A4 is written to minimum_effect_summary.csv; A6_summary.csv
 # additionally retains all secondary criteria and the working-SD scale check.
 
 working_scale <- function() {
-  # Verbatim size/meany/sdy inputs from the supplied PMC_final.R mcdat().
+  # Verbatim size/meany/sdy inputs from the supplied robustness.R mcdat().
   # These are working summaries; original reading missingness is not corrected.
   cells <- data.frame(
     n=c(9,12,14,12,24,23,47,48,46,48,47,49,45,39,8,
@@ -67,7 +67,7 @@ write.csv(data.frame(as.list(sc),literature_reference_sd=9.01/.67,
 
 RNGkind('Mersenne-Twister','Inversion','Rejection')
 set.seed(123)
-# The diagnostics stream in PMC_final.R resets seed=123 before the two
+# The diagnostics stream in robustness.R resets seed=123 before the two
 # retention scenarios. Its earlier mcdat() reconstruction consumes no draws
 # from this reset stream; omitting it here does not alter the A.5 results.
 n_marginal <- 1000L
@@ -129,7 +129,7 @@ for (p in names(priors)) for (c in criteria) {
 summary_df <- do.call(rbind,summary_rows)
 write.csv(summary_df,file.path(output_dir,'A6_summary.csv'),row.names=FALSE)
 write.csv(summary_df[summary_df$criterion %in% criteria[1:2],],
-          file.path(output_dir,'PMC_A6_minimum_effect_summary.csv'),row.names=FALSE)
+          file.path(output_dir,'minimum_effect_summary.csv'),row.names=FALSE)
 
 old <- summary_df[summary_df$criterion==criteria[1],]
 reference <- data.frame(prior=names(priors),A5_mean=c(.678886,.836594),

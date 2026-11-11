@@ -1,4 +1,4 @@
-# PMC_final.R -- base R only; run with Rscript PMC_final.R or source().
+# robustness.R -- base R only; run with Rscript robustness.R or source().
 # Outputs beside this script: one Table A3 CSV and Figures 1/2 as PDF + PNG.
 # Mathematical inputs, degrees of freedom, 1.96 cutoff, 0.8 threshold,
 # 1,000 marginal draws, 100 repetitions and both seed-123 streams are retained.
@@ -182,7 +182,7 @@ for (i in seq_along(scenarios)) {
 }
 run_df <- do.call(rbind, all_runs)  # In memory for audit; no extra raw CSV output.
 summary_df <- do.call(rbind, summary_rows)
-write.csv(summary_df, file.path(output_dir, "PMC_MC_100run_summary.csv"), row.names=FALSE)
+write.csv(summary_df, file.path(output_dir, "robustness_summary.csv"), row.names=FALSE)
 cat("\nTable A3: conditional Pr(p_mc > 0.8 | admissible); mean of 100 run proportions.\n")
 print(summary_df[, 1:10], digits=10, row.names=FALSE)
 cat("\nSD is single-run simulation variability; MCSE of the 100-run mean = SD/10.\n",
@@ -333,7 +333,7 @@ plot_comparison_bw <- function(example, title_text, filename_stem,
 plot_comparison_bw(
   example = 1L,
   title_text = 'Kindergarten retention',
-  filename_stem = 'Figure1_Retention_Priors_Comparison_BW_Legend',
+  filename_stem = 'retention',
   baseline_prob = retention_full_prob, restricted_prob = retention_restricted_prob,
   rxy_z = -0.13, rxz2 = 0.52^2, ryz2 = 0.45^2,
   nu = 7635, sign_r = -1,
@@ -343,7 +343,7 @@ plot_comparison_bw(
 plot_comparison_bw(
   example = 2L,
   title_text = "Father's occupation and educational attainment",
-  filename_stem = 'Figure2_Education_Priors_Comparison_BW_Legend',
+  filename_stem = 'education',
   baseline_prob = education_full_prob, restricted_prob = education_restricted_prob,
   # IMPORTANT: 0.224 and 0.177 are SQUARED multiple correlations.
   rxy_z = 0.29, rxz2 = 0.224, ryz2 = 0.177,
