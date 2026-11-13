@@ -2,7 +2,7 @@
 
 Reproducibility code for **A Monte Carlo procedure for quantifying the robustness of causal inference for a potential missing confounder**.
 
-This repository contains the complete R implementation for the two illustrative examples, Figures 1 and 2, the 100-run statistics for Appendix A.5 Table A3, and the kindergarten-retention fixed-threshold sensitivity analysis for Appendix A.6 Table A4.
+This repository contains the complete R implementation for the two illustrative examples, Figures 1 and 2, the 100-run statistics for Appendix A.5 Table A3, and the kindergarten-retention effect-size threshold sensitivity analysis for Appendix A.6 Table A4.
 
 ## Run the analysis
 
@@ -31,10 +31,10 @@ Run `robustness.R` first to reproduce Table A3 and Figures 1 and 2, then `minimu
 | File | Contents |
 | --- | --- |
 | `robustness.R` | Standalone computation, 1,000 correlation simulations, four 100-run scenarios, and figure generation |
-| `minimum_effect.R` | Standalone Appendix A.6 fixed-threshold analysis for kindergarten retention, 100 runs per prior |
+| `minimum_effect.R` | Standalone Appendix A.6 effect-size threshold analysis for kindergarten retention, 100 runs per prior |
 | `robustness_summary.csv` | Appendix A.5 Table A3 estimates, SD, MCSE, admissible-pair counts, and first/last-half diagnostics |
-| `minimum_effect_summary.csv` | Appendix A.6 Table A4: original NHST and fixed-cutoff scenario proportions, SD, MCSE, admissible counts and percentage-point differences |
-| `minimum_effect_runs.csv` | Appendix A.6: all 100 runs per prior, paired baseline/fixed-cutoff results and numerical diagnostics |
+| `minimum_effect_summary.csv` | Appendix A.6 Table A4: original NHST and effect-size threshold scenario proportions, SD, MCSE, admissible counts and percentage-point differences |
+| `minimum_effect_runs.csv` | Appendix A.6: all 100 runs per prior, paired baseline/effect-size threshold results and numerical diagnostics |
 | `README.md` | Running order, R version, random seeds, model scope, and correspondence between scripts and appendix tables |
 | `retention.pdf` / `.png` | Kindergarten retention, full and restricted priors |
 | `education.pdf` / `.png` | Educational attainment, full and restricted priors |
@@ -81,15 +81,13 @@ The final estimate is the arithmetic mean of 100 per-run conditional proportions
 
 Figure labels use these 100-run means rounded to two decimal places: 0.68, 0.84, 0.82, and 1.00. The last value is rounded from 0.995132 and does not mean exactly 100%. The earlier restricted-prior retention value 0.847420 was a single-run estimate; the final repeated-run mean is 0.83659422.
 
-## Appendix A.6 fixed-threshold sensitivity analysis and Table A4
+## Appendix A.6 effect-size threshold replacement and Table A4
 
-Run `Rscript minimum_effect.R` (or `Rscript minimum_effect.R output_directory`) to generate `minimum_effect_runs.csv` and `minimum_effect_summary.csv`. The filenames are retained for continuity. This retention-only analysis replaces the numerical cutoff `d_alpha = 1.96` in the original PMC formula with `d_fixed = 2.706`. The original NHST calculation remains the comparison baseline.
+Run `Rscript minimum_effect.R` (or `Rscript minimum_effect.R output_directory`) to generate `minimum_effect_runs.csv` and `minimum_effect_summary.csv`. This retention-only analysis replaces the original PMC critical value `d_alpha = 1.96` with the dimensionless, scenario-specific threshold `d_delta = Delta_min / SE_f`. The original NHST calculation remains the comparison baseline.
 
-The supplied source for the reading-score standard deviation is Hong & Raudenbush (2005), Table 2A, spring treatment-year reading score: `SD(Y) = 13.53`. Following the requested specification and motivated by [Kraft (2020)](https://doi.org/10.3102/0013189X20912798), the code computes `d_fixed <- 0.20 * 13.53`, giving 2.706 without pre-rounding.
+The supplied source for the reading-score standard deviation is Hong & Raudenbush (2005), Table 2A, spring treatment-year reading score: `SD(Y) = 13.53`. Motivated by [Kraft (2020)](https://doi.org/10.3102/0013189X20912798), the code computes `delta_min <- 0.20 * 13.53`, giving an absolute threshold of 2.706 reading-score points without pre-rounding. The working scales are `s_x = 0.240548` and `s_y = 13.53`. The threshold is divided by the full-model standard error separately for each admissible confounding pair; it is not inserted directly into the standardized PMC formula.
 
-Interpretation: the T-statistic is dimensionless, whereas the source SD is measured in reading-score points. This analysis directly uses the numerical value 2.706 as a cutoff on the T-statistic scale by specification. It is therefore a fixed-cutoff sensitivity calculation, not a probability that a reading-score effect exceeds 0.20 SD. No coefficient-scale conversion or division by a standard error is performed.
-
-The original working model, correlations, residual degrees of freedom and admissible region are unchanged. With `a = r_xc`, `b = r_yc`, and the existing assumption that the omitted confounder is orthogonal to observed covariates:
+With `a = r_xc`, `b = r_yc`, and the existing assumption that the omitted confounder is orthogonal to observed covariates:
 
 ```text
 q = -0.13 * sqrt((1 - 0.52^2) * (1 - (-0.45)^2))
@@ -99,35 +97,42 @@ A = q - a*b
 D = vx*vy - A^2
 admissible V: vx > 0, vy > 0, D > 0
 tt = A / sqrt(D / 7635)
+SE_f = (13.53 / 0.240548) * sqrt(D / 7635) / vx
+Delta_min = 0.20 * 13.53
+d_delta = Delta_min / SE_f
 p0 = Phi(-tt - 1.96)
-p_fixed = Phi(-tt - 2.706)
+p_delta = Phi(-tt - d_delta)
 Q0 = Pr(p0 > 0.8 | V)
-Q_fixed = Pr(p_fixed > 0.8 | V)
+Q_delta = Pr(p_delta > 0.8 | V)
 ```
 
-Only the cutoff changes. The former coefficient/standard-error minimum-effect calculation is superseded and is no longer evaluated. Since 2.706 is greater than 1.96, `p_fixed <= p0` pointwise and `Q_fixed <= Q0` for each run on the same admissible configurations.
+All divisions and square roots for `tt`, `SE_f` and the probabilities are evaluated only on admissible pairs. Equation (A10) is consistent with the original statistic: `beta_f = (s_y/s_x)*A/vx` implies `beta_f/SE_f = tt = sqrt(7635)*A/sqrt(D)`. The production evaluator does not need to construct `beta_f`. The reduced-model effect direction remains negative.
+
+The replacement is exactly `1.96 -> Delta_min/SE_f`; no extra `-1.96` or additional significance condition is applied. Both `SE_f` and `d_delta` vary with `(a,b)`. Unlike a constant cutoff of 2.706, the new probability has a coherent effect-scale interpretation under the specified normal approximation: for `B ~ N(beta_f, SE_f^2)`, it equals `Pr(B < -Delta_min)`, holding the scenario-specific standard error fixed. This is not a posterior probability about the true causal effect. No universal ordering between `p_delta` and `p0` is imposed, since `Delta_min/SE_f` may be above or below 1.96.
 
 The Monte Carlo design is unchanged: independent nominal uniform marginals on `[-1,1]` or `[-0.5,0.5]`, 1,000 draws per correlation, 1,000,000 Cartesian candidate pairs per run, and 100 runs per prior. Only admissible pairs enter the proportions. Mersenne-Twister / Inversion / Rejection and seed 123 are set once before the full prior; the restricted prior continues the same stream without resetting, matching Appendix A.5.
 
-| Prior | Original Q0 | Fixed-cutoff Q_fixed | Across-run SD of Q_fixed | MCSE | Mean admissible pairs |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| U(-1,1) | 0.678885694346454 | 0.66924663225018 | 0.00875711183582786 | 0.000875711183582786 | 594284.2 |
-| U(-0.5,0.5) | 0.83659422 | 0.82257522 | 0.0067081830031415 | 0.00067081830031415 | 1e+06 |
+| Prior | Original Q0 | Effect-size Q_delta | Across-run SD of Q_delta | MCSE | Mean admissible pairs | Q0 - Q_delta (percentage points) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| U(-1,1) | 0.678885694346454 | 0.647879036365835 | 0.00885235356829177 | 0.000885235356829177 | 594284.2 | 3.1006657980619 |
+| U(-0.5,0.5) | 0.83659422 | 0.79485314 | 0.00694559479315538 | 0.000694559479315538 | 1e+06 | 4.174108 |
 
-`minimum_effect_runs.csv` contains 200 rows (100 per prior): both proportions, exceedance counts, admissible counts, paired percentage-point differences, the fixed cutoff and finite-value diagnostics. `minimum_effect_summary.csv` contains the two Table A4 rows plus baseline SD/MCSE, paired-difference uncertainty and first/last-half diagnostics. Both CSVs retain approximately 15 significant digits. MCSE is the across-run SD divided by `sqrt(100)`; shared marginal draws mean the Cartesian pairs are not independent Bernoulli observations. The raw CSV records mean pointwise probabilities separately from the scenario proportions.
+`minimum_effect_runs.csv` contains 200 rows (100 per prior): both proportions, exceedance counts, admissible counts, paired percentage-point differences, fixed scale inputs and finite-value diagnostics. Per-run minimum/maximum values of `SE_f` and `d_delta` document their variation. `minimum_effect_summary.csv` contains the two Table A4 rows plus baseline SD/MCSE, paired-difference uncertainty and first/last-half diagnostics. Both CSVs retain approximately 15 significant digits. MCSE is the across-run SD divided by `sqrt(100)`; shared marginal draws mean the Cartesian pairs are not independent Bernoulli observations. Mean pointwise probabilities are recorded separately from the scenario proportions.
 
 Validation commands, from the repository root:
 
 ```sh
 Rscript tests/minimum_effect.R
-Rscript minimum_effect.R /tmp/pmc-fixed-run1
-Rscript minimum_effect.R /tmp/pmc-fixed-run2
-Rscript tests/minimum_effect_results.R /tmp/pmc-fixed-run1 /tmp/pmc-fixed-run2
+Rscript minimum_effect.R /tmp/pmc-scaled-run1
+Rscript minimum_effect.R /tmp/pmc-scaled-run2
+Rscript tests/minimum_effect_results.R /tmp/pmc-scaled-run1 /tmp/pmc-scaled-run2
 ```
 
-The pointwise tests verify the cutoff 2.706, compare the unchanged T-statistic with direct `lm()` fits, and recover NHST exactly when the cutoff is set to 1.96. Positive definiteness of the full working correlation matrix independently checks admissibility, including separate near-boundary tests. Nonfinite values on admissible pairs cause failure rather than silent removal. The results test verifies identical CSVs across two complete runs, summary arithmetic, Appendix A.5 statistics and all 200 baseline runs against the unchanged main evaluator. It also checks every fixed-cutoff proportion through the equivalent event `-tt > 2.706 + qnorm(0.8)`. First/last-half comparisons are descriptive stability diagnostics, not a convergence proof.
+The pointwise tests compare `SE_f` and the unchanged T-statistic with direct `lm()` fits having exactly specified sample covariance matrices. They recover NHST when `Delta_min = 1.96*SE_f`, verify probability 0.5 at `beta_f = -Delta_min` (detecting an extra significance cutoff), and verify invariance when the reading-score scale and absolute threshold are rescaled together. Full correlation-matrix positive definiteness independently checks admissibility, with separate boundary tests. Nonfinite values on admissible pairs cause failure rather than silent removal.
 
-The original Q0 means reproduce Appendix A.5 at full stored precision and round to 0.678886 and 0.836594. This analysis retains the original working model; it does not refit the source study's multilevel estimator.
+The results test verifies byte-identical CSVs from two complete runs, summary arithmetic, Appendix A.5 statistics and all 200 baseline runs against the unchanged main evaluator. It independently reconstructs the coefficient and SE using FWL residual cross-products and verifies every new proportion through the equivalent event `beta_f + qnorm(0.8)*SE_f < -2.706`. First/last-half comparisons are descriptive stability diagnostics, not a convergence proof.
+
+The original Q0 means reproduce Appendix A.5 at full stored precision and round to 0.678886 and 0.836594. The new Table A4 values are recomputed with `s_y = 13.53` and `Delta_min = 2.706`; they supersede earlier constant-cutoff and differently scaled results. This analysis retains the original working OLS model and does not refit the source study's multilevel estimator.
 
 ## Correlation simulation for the retention example
 
