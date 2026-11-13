@@ -2,7 +2,7 @@
 
 Reproducibility code for **A Monte Carlo procedure for quantifying the robustness of causal inference for a potential missing confounder**.
 
-This repository contains the complete R implementation for the two illustrative examples, Figures 1 and 2, the 100-run statistics for Appendix A.5 Table A3, and the kindergarten-retention minimum-effect-size sensitivity analysis for Appendix A.6 Table A4.
+This repository contains the complete R implementation for the two illustrative examples, Figures 1 and 2, the 100-run statistics for Appendix A.5 Table A3, and the kindergarten-retention fixed-threshold sensitivity analysis for Appendix A.6 Table A4.
 
 ## Run the analysis
 
@@ -31,10 +31,10 @@ Run `robustness.R` first to reproduce Table A3 and Figures 1 and 2, then `minimu
 | File | Contents |
 | --- | --- |
 | `robustness.R` | Standalone computation, 1,000 correlation simulations, four 100-run scenarios, and figure generation |
-| `minimum_effect.R` | Standalone Appendix A.6 minimum-effect analysis for kindergarten retention, 100 runs per prior |
+| `minimum_effect.R` | Standalone Appendix A.6 fixed-threshold analysis for kindergarten retention, 100 runs per prior |
 | `robustness_summary.csv` | Appendix A.5 Table A3 estimates, SD, MCSE, admissible-pair counts, and first/last-half diagnostics |
-| `minimum_effect_summary.csv` | Appendix A.6 Table A4: original NHST and minimum-effect scenario proportions, SD, MCSE, admissible counts and percentage-point differences |
-| `minimum_effect_runs.csv` | Appendix A.6: all 100 runs per prior, paired baseline/minimum-effect results and numerical diagnostics |
+| `minimum_effect_summary.csv` | Appendix A.6 Table A4: original NHST and fixed-cutoff scenario proportions, SD, MCSE, admissible counts and percentage-point differences |
+| `minimum_effect_runs.csv` | Appendix A.6: all 100 runs per prior, paired baseline/fixed-cutoff results and numerical diagnostics |
 | `README.md` | Running order, R version, random seeds, model scope, and correspondence between scripts and appendix tables |
 | `retention.pdf` / `.png` | Kindergarten retention, full and restricted priors |
 | `education.pdf` / `.png` | Educational attainment, full and restricted priors |
@@ -81,13 +81,15 @@ The final estimate is the arithmetic mean of 100 per-run conditional proportions
 
 Figure labels use these 100-run means rounded to two decimal places: 0.68, 0.84, 0.82, and 1.00. The last value is rounded from 0.995132 and does not mean exactly 100%. The earlier restricted-prior retention value 0.847420 was a single-run estimate; the final repeated-run mean is 0.83659422.
 
-## Appendix A.6 minimum-effect-size analysis and Table A4
+## Appendix A.6 fixed-threshold sensitivity analysis and Table A4
 
-Run `Rscript minimum_effect.R` (or `Rscript minimum_effect.R output_directory`) to generate `minimum_effect_runs.csv` and `minimum_effect_summary.csv`. This retention-only extension replaces the statistical significance cutoff with an illustrative minimum meaningful effect. The original NHST probability is retained solely as the baseline comparison; the main analysis and figures are unchanged.
+Run `Rscript minimum_effect.R` (or `Rscript minimum_effect.R output_directory`) to generate `minimum_effect_runs.csv` and `minimum_effect_summary.csv`. The filenames are retained for continuity. This retention-only analysis replaces the numerical cutoff `d_alpha = 1.96` in the original PMC formula with `d_fixed = 2.706`. The original NHST calculation remains the comparison baseline.
 
-Motivated by [Kraft (2020)](https://doi.org/10.3102/0013189X20912798), the threshold is calculated without rounding as `Delta_min = 0.20 * (9.01 / 0.67) = 2.6895522388059701` reading-score points. The 0.67-SD description is approximate, and 0.20 SD is an analyst-selected sensitivity threshold, not a universal standard. The fixed working scales for this analysis are `s_x = 0.240548` and `s_y = 13.374335`.
+The supplied source for the reading-score standard deviation is Hong & Raudenbush (2005), Table 2A, spring treatment-year reading score: `SD(Y) = 13.53`. Following the requested specification and motivated by [Kraft (2020)](https://doi.org/10.3102/0013189X20912798), the code computes `d_fixed <- 0.20 * 13.53`, giving 2.706 without pre-rounding.
 
-Equation (A10), with `a = r_xc`, `b = r_yc`, and the existing assumption that the omitted confounder is orthogonal to observed covariates:
+Interpretation: the T-statistic is dimensionless, whereas the source SD is measured in reading-score points. This analysis directly uses the numerical value 2.706 as a cutoff on the T-statistic scale by specification. It is therefore a fixed-cutoff sensitivity calculation, not a probability that a reading-score effect exceeds 0.20 SD. No coefficient-scale conversion or division by a standard error is performed.
+
+The original working model, correlations, residual degrees of freedom and admissible region are unchanged. With `a = r_xc`, `b = r_yc`, and the existing assumption that the omitted confounder is orthogonal to observed covariates:
 
 ```text
 q = -0.13 * sqrt((1 - 0.52^2) * (1 - (-0.45)^2))
@@ -96,43 +98,36 @@ vy = 1 - (-0.45)^2 - b^2
 A = q - a*b
 D = vx*vy - A^2
 admissible V: vx > 0, vy > 0, D > 0
-beta_f = (s_y / s_x) * A / vx
-SE_f = (s_y / s_x) * sqrt(D / 7635) / vx
-beta_f / SE_f = sqrt(7635) * A / sqrt(D)
+tt = A / sqrt(D / 7635)
+p0 = Phi(-tt - 1.96)
+p_fixed = Phi(-tt - 2.706)
+Q0 = Pr(p0 > 0.8 | V)
+Q_fixed = Pr(p_fixed > 0.8 | V)
 ```
 
-The ratio matches the original test statistic. Equation (A11) now uses:
+Only the cutoff changes. The former coefficient/standard-error minimum-effect calculation is superseded and is no longer evaluated. Since 2.706 is greater than 1.96, `p_fixed <= p0` pointwise and `Q_fixed <= Q0` for each run on the same admissible configurations.
 
-```text
-p_mc = Phi(-beta_f / SE_f - 1.96)       # original NHST baseline
-p_mc_delta = Phi((-Delta_min - beta_f) / SE_f)
-Q0 = Pr(p_mc > 0.8 | V)
-Q_delta = Pr(p_mc_delta > 0.8 | V)
-```
+The Monte Carlo design is unchanged: independent nominal uniform marginals on `[-1,1]` or `[-0.5,0.5]`, 1,000 draws per correlation, 1,000,000 Cartesian candidate pairs per run, and 100 runs per prior. Only admissible pairs enter the proportions. Mersenne-Twister / Inversion / Rejection and seed 123 are set once before the full prior; the restricted prior continues the same stream without resetting, matching Appendix A.5.
 
-There is **no subtraction of 1.96** in `p_mc_delta`. Under the scenario-specific normal approximation `B ~ N(beta_f, SE_f^2)`, this is the probability of `B < -Delta_min`, holding `SE_f` fixed. It is not the power of an additional significance test against a nonzero null, and not a deterministic filter on the fitted effect. The previous extra-cutoff, joint-event and alternative-SD summaries are superseded; this script now outputs only the requested baseline and minimum-effect analysis.
+| Prior | Original Q0 | Fixed-cutoff Q_fixed | Across-run SD of Q_fixed | MCSE | Mean admissible pairs |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| U(-1,1) | 0.678885694346454 | 0.66924663225018 | 0.00875711183582786 | 0.000875711183582786 | 594284.2 |
+| U(-0.5,0.5) | 0.83659422 | 0.82257522 | 0.0067081830031415 | 0.00067081830031415 | 1e+06 |
 
-The Monte Carlo design is unchanged: independent nominal uniform marginals on `[-1,1]` or `[-0.5,0.5]`, 1,000 draws per correlation, 1,000,000 Cartesian candidate pairs per run, and 100 runs per prior. Only admissible pairs enter the proportions. Mersenne-Twister / Inversion / Rejection and seed 123 are set once before the full prior; the restricted prior continues the same stream without resetting. This matches the retention portion of Appendix A.5.
-
-| Prior | Mean Q0 | Mean Q_delta | Across-run SD of Q_delta | MCSE | Mean admissible pairs | Q0 - Q_delta (percentage points) |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| U(-1,1) | 0.678885694346454 | 0.647536624376858 | 0.00885242518860824 | 0.000885242518860824 | 594284.2 | 3.1349069969596 |
-| U(-0.5,0.5) | 0.83659422 | 0.79435659 | 0.00694926778512628 | 0.000694926778512628 | 1e+06 | 4.223763 |
-
-`minimum_effect_runs.csv` has 200 rows (100 per prior), including both proportions, exceedance counts, admissible counts, paired percentage-point differences, fixed parameters and numerical diagnostics. `minimum_effect_summary.csv` has the two Table A4 rows plus baseline SD/MCSE, paired-difference uncertainty and first/last-half diagnostics. Both CSVs retain approximately 15 significant digits. MCSE is the across-run SD divided by `sqrt(100)`; Cartesian pairs share sampled axes and are not independent Bernoulli observations. The scenario proportions are distinct from mean pointwise probabilities, which are separately recorded in the raw CSV.
+`minimum_effect_runs.csv` contains 200 rows (100 per prior): both proportions, exceedance counts, admissible counts, paired percentage-point differences, the fixed cutoff and finite-value diagnostics. `minimum_effect_summary.csv` contains the two Table A4 rows plus baseline SD/MCSE, paired-difference uncertainty and first/last-half diagnostics. Both CSVs retain approximately 15 significant digits. MCSE is the across-run SD divided by `sqrt(100)`; shared marginal draws mean the Cartesian pairs are not independent Bernoulli observations. The raw CSV records mean pointwise probabilities separately from the scenario proportions.
 
 Validation commands, from the repository root:
 
 ```sh
 Rscript tests/minimum_effect.R
-Rscript minimum_effect.R /tmp/pmc-a6-run1
-Rscript minimum_effect.R /tmp/pmc-a6-run2
-Rscript tests/minimum_effect_results.R /tmp/pmc-a6-run1 /tmp/pmc-a6-run2
+Rscript minimum_effect.R /tmp/pmc-fixed-run1
+Rscript minimum_effect.R /tmp/pmc-fixed-run2
+Rscript tests/minimum_effect_results.R /tmp/pmc-fixed-run1 /tmp/pmc-fixed-run2
 ```
 
-The pointwise tests compare Equation (A10) with direct `lm()` fits having exactly specified covariance matrices, verify that Equation (A11) gives 0.5 at `beta_f = -Delta_min`, and check the normal probability by numerical integration. They also check invalid-pair exclusion and finite behavior close to the admissible boundary. The simulation rejects nonfinite values on admissible pairs instead of silently dropping them. The results test verifies identical CSVs across two complete runs, summary arithmetic, Appendix A.5 statistics and all 200 baseline runs against the unchanged main evaluator. First/last-half comparisons describe numerical stability, not a convergence proof.
+The pointwise tests verify the cutoff 2.706, compare the unchanged T-statistic with direct `lm()` fits, and recover NHST exactly when the cutoff is set to 1.96. Positive definiteness of the full working correlation matrix independently checks admissibility, including separate near-boundary tests. Nonfinite values on admissible pairs cause failure rather than silent removal. The results test verifies identical CSVs across two complete runs, summary arithmetic, Appendix A.5 statistics and all 200 baseline runs against the unchanged main evaluator. It also checks every fixed-cutoff proportion through the equivalent event `-tt > 2.706 + qnorm(0.8)`. First/last-half comparisons are descriptive stability diagnostics, not a convergence proof.
 
-These are sensitivity calculations within the specified working OLS model. The supplied scales and correlations do not identify the original study's multilevel estimator, individual-level design, school covariance or weights, and this analysis does not refit that model.
+The original Q0 means reproduce Appendix A.5 at full stored precision and round to 0.678886 and 0.836594. This analysis retains the original working model; it does not refit the source study's multilevel estimator.
 
 ## Correlation simulation for the retention example
 
