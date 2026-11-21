@@ -79,7 +79,7 @@ p_mc = Phi(direction * q / sqrt(D / nu) - 1.96)
 
 The final estimate is the arithmetic mean of 100 per-run conditional proportions. SD measures variability across complete runs. MCSE of the 100-run mean is SD/sqrt(100), not SD. Cross-combined pairs share marginal draws and are not independent Bernoulli observations; admissible-pair counts are not effective independent sample sizes. First/last-half comparisons are descriptive stability diagnostics, not a proof of convergence.
 
-Figure 1 retains its two-decimal labels 0.68 and 0.84. Figure 2 uses three decimals, 0.825 and 0.997, so the Education restricted-prior value is visibly below one. The CSV retains its existing `figure_label_2dp` field as two-decimal summary metadata; Figure 2 uses the full stored means. The earlier restricted-prior retention value 0.847420 was a single-run estimate; the final repeated-run mean is 0.83659422.
+Both figures use two-decimal labels: Figure 1 shows 0.68 and 0.84; Figure 2 shows 0.83 and 1.00. The Education restricted-prior label 1.00 is rounded from 0.99697109 and does not mean exactly 100%. Calculations retain full precision. The CSV's existing `figure_label_2dp` field matches the displayed labels. The earlier restricted-prior retention value 0.847420 was a single-run estimate; the final repeated-run mean is 0.83659422.
 
 ## Education input correction and validation
 

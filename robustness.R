@@ -6,7 +6,7 @@
 # order, INCLUDING its initial mcdat() call before the 1,000 replications.
 # Table A3 then resets seed=123, exactly as the separate diagnostics script.
 # Figure design is unchanged; probability labels now use Table A3's 100-run means.
-# Retention labels retain two decimals; Education uses three decimals.
+# Both figures use two-decimal probability labels.
 
 output_dir <- local({
   source_files <- lapply(sys.frames(), function(frame) frame$ofile)
@@ -202,7 +202,7 @@ cat("\nSD is single-run simulation variability; MCSE of the 100-run mean = SD/10
     "The 1,000,000 Cartesian pairs per run are NOT independent observations.\n",
     "Admissible-pair counts are not effective sample sizes.\n",
     "First/last-half comparisons describe stability, not a convergence proof.\n",
-    "Figure labels use these 100-run means: Retention 2dp, Education 3dp.\n", sep="")
+    "Figure labels use these 100-run means rounded to two decimals.\n", sep="")
 figure_probabilities <- summary_df$mean_p
 retention_full_prob <- figure_probabilities[1L]
 retention_restricted_prob <- figure_probabilities[2L]
@@ -228,7 +228,7 @@ make_surface <- function(lb, ub, rxy_z, rxz2, ryz2, nu, sign_r, n_grid = 801L) {
   list(x = x, y = y, z = z, admissible = admissible)
 }
 
-plot_panel_bw <- function(surface, prior_title, reported_p, restricted_box = FALSE, label_digits = 2L) {
+plot_panel_bw <- function(surface, prior_title, reported_p, restricted_box = FALSE) {
   x <- surface$x
   y <- surface$y
   z <- surface$z
@@ -274,7 +274,7 @@ plot_panel_bw <- function(surface, prior_title, reported_p, restricted_box = FAL
   title(xlab = expression(r[xc]), ylab = expression(r[yc]),
         cex.lab = 1.25, line = 2.6)
   title(main = paste0(prior_title,
-                      '\nPr(p_mc > 0.8) = ', formatC(reported_p, format='f', digits=label_digits)),
+                      '\nPr(p_mc > 0.8) = ', sprintf('%.2f', reported_p)),
         cex.main = 1.12, font.main = 1, line = 0.6)
 }
 
@@ -321,10 +321,8 @@ plot_comparison_bw <- function(example, title_text, filename_stem,
     par(oma = c(0.3, 0.2, 2.0, 0.2))
 
     plot_panel_bw(full, '(a) Prior: U(-1, 1)', baseline_prob,
-                  restricted_box = show_restricted_box,
-                  label_digits = if (example == 2L) 3L else 2L)
-    plot_panel_bw(restricted, '(b) Prior: U(-0.5, 0.5)', restricted_prob,
-                  label_digits = if (example == 2L) 3L else 2L)
+                  restricted_box = show_restricted_box)
+    plot_panel_bw(restricted, '(b) Prior: U(-0.5, 0.5)', restricted_prob)
     plot_legend_bw(show_restricted_box)
 
     mtext(title_text, side = 3, outer = TRUE, line = 0.5,
