@@ -43,7 +43,7 @@ PDF figures use vector contours and text; PNG figures are 7,200 by 4,200 pixels 
 
 ## Implemented calculation
 
-1. Obtain the observed partial correlation, squared covariate correlations, original effect direction, and residual degrees of freedom. The two supplied examples use the original working inputs listed below.
+1. Obtain the observed partial correlation, squared covariate correlations, original effect direction, and residual degrees of freedom. The examples use the inputs listed below; Education is computed from the corrected multi-covariate matrix formula.
 2. Set the critical value to 1.96 and the pointwise power threshold to 0.8.
 3. Specify independent uniform nominal marginals on either [-1, 1] or [-0.5, 0.5].
 4. Draw 1,000 values for each marginal and cross-combine them. Retain pairs satisfying both positive residual-variance conditions and a positive determinant.
@@ -66,7 +66,7 @@ p_mc = Phi(direction * q / sqrt(D / nu) - 1.96)
 | Example | Partial correlation | rxz2 | ryz2 | nu | Direction |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Retention | -0.13 | 0.2704 | 0.2025 | 7,635 | -1 |
-| Education | 0.29 | 0.224 | 0.177 | 10,562 | +1 |
+| Education | 0.2984613894645406 | 0.22352057677494624 | 0.17686271729239786 | 10,562 | +1 |
 
 ## Reference results for Appendix Table A3
 
@@ -74,12 +74,44 @@ p_mc = Phi(direction * q / sqrt(D / nu) - 1.96)
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Retention U(-1,1) | 594,284.2 | 0.678886 | 0.008725906 | 0.000872591 | 0.679303 | 0.678469 |
 | Retention U(-0.5,0.5) | 1,000,000 | 0.836594 | 0.006523652 | 0.000652365 | 0.836014 | 0.837174 |
-| Education U(-1,1) | 601,030.7 | 0.820084 | 0.007962974 | 0.000796297 | 0.820310 | 0.819859 |
-| Education U(-0.5,0.5) | 1,000,000 | 0.995132 | 0.000579725 | 0.000057973 | 0.995075 | 0.995189 |
+| Education U(-1,1) | 599629.39 | 0.825283992413 | 0.00781046584493 | 0.000781046584493 | 0.825522876062 | 0.825045108765 |
+| Education U(-0.5,0.5) | 1000000 | 0.99697109 | 0.000397324285412 | 3.97324285412e-05 | 0.99692492 | 0.99701726 |
 
 The final estimate is the arithmetic mean of 100 per-run conditional proportions. SD measures variability across complete runs. MCSE of the 100-run mean is SD/sqrt(100), not SD. Cross-combined pairs share marginal draws and are not independent Bernoulli observations; admissible-pair counts are not effective independent sample sizes. First/last-half comparisons are descriptive stability diagnostics, not a proof of convergence.
 
-Figure labels use these 100-run means rounded to two decimal places: 0.68, 0.84, 0.82, and 1.00. The last value is rounded from 0.995132 and does not mean exactly 100%. The earlier restricted-prior retention value 0.847420 was a single-run estimate; the final repeated-run mean is 0.83659422.
+Figure 1 retains its two-decimal labels 0.68 and 0.84. Figure 2 uses three decimals, 0.825 and 0.997, so the Education restricted-prior value is visibly below one. The CSV retains its existing `figure_label_2dp` field as two-decimal summary metadata; Figure 2 uses the full stored means. The earlier restricted-prior retention value 0.847420 was a single-run estimate; the final repeated-run mean is 0.83659422.
+
+## Education input correction and validation
+
+Frank (2000), Table 1 supplies `rxy=.427`, `rXZ=c(-.437,-.289)`, `rYZ=c(-.317,-.350)` and `RZZ=matrix(c(1,.263,.263,1),2)`. For two observed covariates, the cross term is `crossprod(rXZ, solve(RZZ,rYZ))`, rather than the product of the two multiple correlations. `robustness.R` computes:
+
+```text
+cross = rXZ' RZZ^(-1) rYZ = 0.18838965505016483
+rxz2 = rXZ' RZZ^(-1) rXZ = 0.22352057677494624
+ryz2 = rYZ' RZZ^(-1) rYZ = 0.17686271729239786
+partial_r = (rxy-cross)/sqrt((1-rxz2)*(1-ryz2)) = 0.2984613894645406
+T(0,0) = partial_r*sqrt(10562/(1-partial_r^2)) = 32.138154101648
+```
+
+Both Education priors and Figure 2 use the full computed precision; prose may display partial r as 0.30. The corrected probabilities are 0.825283992413386 and 0.99697109, replacing 0.820084326783698 and 0.99513203. The existing PMC formula, admissibility, 1,000 draws per marginal, 100 repetitions, seed123 and scenario ordering are unchanged. MCSE remains the across-run SD divided by sqrt(100), not a Bernoulli SE over Cartesian pairs.
+
+The Education-only correction was run with R 4.5.0 (2025-04-11), base R, on macOS. Run the numerical regression test from the cloned repository root:
+
+```sh
+Rscript tests/education.R
+```
+
+For complete deterministic verification, prepare three directories containing the modified script twice and the restored pre-fix script (commit `1cb1466`) once. Execute each using the following pattern, substituting its directory for `run_directory`:
+
+```sh
+Rscript -e 'source("run_directory/robustness.R"); saveRDS(list(runs=run_df,reconstruction=output,rng=.Random.seed), "run_directory/audit.rds")'
+Rscript tests/education.R run1_directory run2_directory baseline_directory
+Rscript tests/minimum_effect.R
+Rscript tests/minimum_effect_results.R . baseline_directory
+```
+
+The test independently checks the positive-definite Table 1 matrix, precision-matrix partial correlation and T(0,0), then independently replays all 200 Education repetitions using seed123 and the original preceding Retention draws. It verifies means, SD, MCSE and admissible counts. The two full runs produced identical CSVs and PNGs. Against the restored baseline, all 200 Retention repetitions, summary rows, reconstruction draws, final RNG state and generated PNG were identical; generated Retention PDF drawing bytes matched apart from timestamp metadata. The repository's Retention PDF/PNG and all A.6 files remain byte-identical to the baseline. The protected-file check uses Git.
+
 
 ## Appendix A.6 effect-size threshold replacement and Table A4
 
@@ -149,7 +181,7 @@ Within each treatment-by-stratum cell, propensity-score logits and reading score
 
 ## Reproducibility details
 
-The script preserves the mathematical formulas, rounded working inputs, degrees of freedom, and random-number order of the supplied implementations. It uses Mersenne-Twister / Inversion / Rejection and two seed-123 streams:
+The script preserves the PMC formulas, Retention working inputs, degrees of freedom, and random-number order of the supplied implementations; Education inputs use the corrected full-precision matrix calculation above. It uses Mersenne-Twister / Inversion / Rejection and two seed-123 streams:
 
 - The correlation reconstruction and original single-run comparisons follow the original figure script, including its initial `mcdat()` call before the 1,000 recorded simulations.
 - The four 100-run scenarios restart from `set.seed(123)`, matching the original standalone diagnostics script.

@@ -1,12 +1,12 @@
 # robustness.R -- base R only; run with Rscript robustness.R or source().
 # Outputs beside this script: one Table A3 CSV and Figures 1/2 as PDF + PNG.
-# Mathematical inputs, degrees of freedom, 1.96 cutoff, 0.8 threshold,
+# Degrees of freedom, 1.96 cutoff, 0.8 threshold,
 # 1,000 marginal draws, 100 repetitions and both seed-123 streams are retained.
 # Correlation reconstruction and original single-run checks use final_ver's RNG
 # order, INCLUDING its initial mcdat() call before the 1,000 replications.
 # Table A3 then resets seed=123, exactly as the separate diagnostics script.
 # Figure design is unchanged; probability labels now use Table A3's 100-run means.
-# The four plotted labels are rounded to two decimals, as in final_ver.
+# Retention labels retain two decimals; Education uses three decimals.
 
 output_dir <- local({
   source_files <- lapply(sys.frames(), function(frame) frame$ofile)
@@ -101,15 +101,28 @@ cat("\nPMC working inputs retained: partial r=-0.13, r_xz=0.52, |r_yz|=0.45.\n",
 n_marginal <- 1000L
 n_repeats <- 100L
 threshold <- 0.8
+# Frank (2000), Table 1: two observed covariates require a matrix cross term.
+# Keep full precision for both Monte Carlo inputs and the Education surface.
+education_inputs <- local({
+  rxy <- 0.427
+  rXZ <- c(-0.437, -0.289)
+  rYZ <- c(-0.317, -0.350)
+  RZZ <- matrix(c(1, 0.263, 0.263, 1), 2L)
+  cross_term <- drop(crossprod(rXZ, solve(RZZ, rYZ)))
+  rxz2 <- drop(crossprod(rXZ, solve(RZZ, rXZ)))
+  ryz2 <- drop(crossprod(rYZ, solve(RZZ, rYZ)))
+  list(cross_term=cross_term, rxz2=rxz2, ryz2=ryz2,
+       partial_r=(rxy-cross_term)/sqrt((1-rxz2)*(1-ryz2)))
+})
 scenarios <- list(
   list(name = "Retention U(-1,1)", bounds = c(-1,1), partial_r=-0.13,
        rxz2=0.52^2, ryz2=0.45^2, nu=7635, direction=-1),
   list(name = "Retention U(-0.5,0.5)", bounds = c(-0.5,0.5), partial_r=-0.13,
        rxz2=0.52^2, ryz2=0.45^2, nu=7635, direction=-1),
-  list(name = "Education U(-1,1)", bounds = c(-1,1), partial_r=0.29,
-       rxz2=0.224, ryz2=0.177, nu=10562, direction=+1),
-  list(name = "Education U(-0.5,0.5)", bounds = c(-0.5,0.5), partial_r=0.29,
-       rxz2=0.224, ryz2=0.177, nu=10562, direction=+1)
+  list(name = "Education U(-1,1)", bounds = c(-1,1), partial_r=education_inputs$partial_r,
+       rxz2=education_inputs$rxz2, ryz2=education_inputs$ryz2, nu=10562, direction=+1),
+  list(name = "Education U(-0.5,0.5)", bounds = c(-0.5,0.5), partial_r=education_inputs$partial_r,
+       rxz2=education_inputs$rxz2, ryz2=education_inputs$ryz2, nu=10562, direction=+1)
 )
 
 # Shared pointwise calculation, algebraically identical to hong()/edu().
@@ -189,7 +202,7 @@ cat("\nSD is single-run simulation variability; MCSE of the 100-run mean = SD/10
     "The 1,000,000 Cartesian pairs per run are NOT independent observations.\n",
     "Admissible-pair counts are not effective sample sizes.\n",
     "First/last-half comparisons describe stability, not a convergence proof.\n",
-    "Figure labels below use these 100-run means, rounded to two decimals.\n", sep="")
+    "Figure labels use these 100-run means: Retention 2dp, Education 3dp.\n", sep="")
 figure_probabilities <- summary_df$mean_p
 retention_full_prob <- figure_probabilities[1L]
 retention_restricted_prob <- figure_probabilities[2L]
@@ -215,7 +228,7 @@ make_surface <- function(lb, ub, rxy_z, rxz2, ryz2, nu, sign_r, n_grid = 801L) {
   list(x = x, y = y, z = z, admissible = admissible)
 }
 
-plot_panel_bw <- function(surface, prior_title, reported_p, restricted_box = FALSE) {
+plot_panel_bw <- function(surface, prior_title, reported_p, restricted_box = FALSE, label_digits = 2L) {
   x <- surface$x
   y <- surface$y
   z <- surface$z
@@ -261,7 +274,7 @@ plot_panel_bw <- function(surface, prior_title, reported_p, restricted_box = FAL
   title(xlab = expression(r[xc]), ylab = expression(r[yc]),
         cex.lab = 1.25, line = 2.6)
   title(main = paste0(prior_title,
-                      '\nPr(p_mc > 0.8) = ', sprintf('%.2f', reported_p)),
+                      '\nPr(p_mc > 0.8) = ', formatC(reported_p, format='f', digits=label_digits)),
         cex.main = 1.12, font.main = 1, line = 0.6)
 }
 
@@ -308,8 +321,10 @@ plot_comparison_bw <- function(example, title_text, filename_stem,
     par(oma = c(0.3, 0.2, 2.0, 0.2))
 
     plot_panel_bw(full, '(a) Prior: U(-1, 1)', baseline_prob,
-                  restricted_box = show_restricted_box)
-    plot_panel_bw(restricted, '(b) Prior: U(-0.5, 0.5)', restricted_prob)
+                  restricted_box = show_restricted_box,
+                  label_digits = if (example == 2L) 3L else 2L)
+    plot_panel_bw(restricted, '(b) Prior: U(-0.5, 0.5)', restricted_prob,
+                  label_digits = if (example == 2L) 3L else 2L)
     plot_legend_bw(show_restricted_box)
 
     mtext(title_text, side = 3, outer = TRUE, line = 0.5,
@@ -345,8 +360,8 @@ plot_comparison_bw(
   title_text = "Father's occupation and educational attainment",
   filename_stem = 'education',
   baseline_prob = education_full_prob, restricted_prob = education_restricted_prob,
-  # IMPORTANT: 0.224 and 0.177 are SQUARED multiple correlations.
-  rxy_z = 0.29, rxz2 = 0.224, ryz2 = 0.177,
+  rxy_z = education_inputs$partial_r,
+  rxz2 = education_inputs$rxz2, ryz2 = education_inputs$ryz2,
   nu = 10562, sign_r = +1,
   show_restricted_box = TRUE
 )
