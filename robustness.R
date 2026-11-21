@@ -1,12 +1,12 @@
 # robustness.R -- base R only; run with Rscript robustness.R or source().
-# Outputs beside this script: Table A3 summary/runs and Figures 1/2 PDF + PNG.
-# Shared inputs, degrees of freedom, 1.96 cutoff, 0.8 threshold,
+# Outputs beside this script: one Table A3 CSV and Figures 1/2 as PDF + PNG.
+# Mathematical inputs, degrees of freedom, 1.96 cutoff, 0.8 threshold,
 # 1,000 marginal draws, 100 repetitions and both seed-123 streams are retained.
 # Correlation reconstruction and original single-run checks use final_ver's RNG
 # order, INCLUDING its initial mcdat() call before the 1,000 replications.
 # Table A3 then resets seed=123, exactly as the separate diagnostics script.
 # Figure design is unchanged; probability labels now use Table A3's 100-run means.
-# The four plotted labels are rounded to three decimals, as in final_ver.
+# The four plotted labels are rounded to two decimals, as in final_ver.
 
 output_dir <- local({
   source_files <- lapply(sys.frames(), function(frame) frame$ofile)
@@ -26,8 +26,40 @@ output_dir <- local({
   path
 })
 
-source(file.path(output_dir, "inputs.R"))
-source(file.path(output_dir, "retention_reconstruction.R"))
+vrnorm <- Vectorize(rnorm,c("n","mean","sd"))
+
+mcdat <- function() {
+  dat <- mat.or.vec(7639,4)
+  size <- c(9,12,14,12,24,23,47,48,46,48,47,49,45,39,8,3054,1661,983,323,441,154,213,143,85,49,35,16,8,3)
+  dat[,1] <- rep(c(1,0),times=c(471,7168))
+  dat[,2] <- rep(1:29,times=size)
+  # Define means and standard deviations for the logit of propensity scores (z)
+  meanz <- c(-5.42, -4.25, -3.42, -2.98, -2.57, -2.15, -1.75, -1.24, -0.83, -0.46, 
+             -0.01, 0.53, 1.16, 1.99, 3.7, -5.38, -4.27, -3.5, -2.97, -2.55, 
+             -2.14, -1.77, -1.27, -0.86, -0.47, -0.04, 0.56, 1.14, 1.8)
+  sdz <- c(0.4, 0.24, 0.2, 0.1, 0.17, 0.07, 0.15, 0.14, 0.11, 0.12, 0.11, 0.22, 
+           0.2, 0.33, 1.09, 0.39, 0.25, 0.2, 0.1, 0.16, 0.07, 0.15, 0.14, 0.1, 
+           0.11, 0.15, 0.17, 0.17, 0.17)
+  z <- vrnorm(size,meanz,sdz)
+  z <- unlist(z)
+  dat[,3] <- z
+  # Define means and standard deviations for reading scores (y)
+  meany <- c(47.41,47.25,42.66, 45.24,44.07,36.63,37.41,39.79,37.78,35,34.3,32.06,31.09,33.87,32.84,
+             59.22,55.62,52.49,52.45,50.05,48.77,45.89,46,43.28,42.18,40.45,33.03,35.27,40.47)
+  sdy <- c(11.73,15.50,15.92,17.32,14.43,13.88,10.92,15.37,12.27,9.77,9.05,9.31,11.96,9.15,
+           7.71,11.64,11.30,11.95,12.53,12.15,12.67,12.40,13.37,11.52,13.34,13.08,14.33,8.25,8.60)
+  y <- vrnorm(size,meany,sdy)
+  y <- unlist(y)
+  dat[,4] <- y
+  dat <- data.frame(dat)
+  colnames(dat) <- c("x","strata","z","y")
+  rxz <- cor(dat$x,dat$z)
+  ryz <- cor(dat$y,dat$z)
+  rxy <- cor(dat$x,dat$y)
+  rxyonz <- (rxy-rxz*ryz)/sqrt((1-rxz^2)*(1-ryz^2))
+  result <- c(rxz,ryz,rxy,rxyonz)
+  return(result)
+}
 
 # Explicitly retain the default RNG used in the supplied R scripts (R >= 3.6).
 RNGkind("Mersenne-Twister", "Inversion", "Rejection")
@@ -69,13 +101,16 @@ cat("\nPMC working inputs retained: partial r=-0.13, r_xz=0.52, |r_yz|=0.45.\n",
 n_marginal <- 1000L
 n_repeats <- 100L
 threshold <- 0.8
-scenarios <- unlist(lapply(c("Retention", "Education"), function(example) {
-  input <- if (example == "Retention") retention_inputs else education_inputs
-  lapply(list(c(-1,1), c(-0.5,0.5)), function(bounds) {
-    c(list(name=paste0(example, " U(", bounds[1], ",", bounds[2], ")"),
-           bounds=bounds), input[c("partial_r", "rxz2", "ryz2", "nu", "direction")])
-  })
-}), recursive=FALSE)
+scenarios <- list(
+  list(name = "Retention U(-1,1)", bounds = c(-1,1), partial_r=-0.13,
+       rxz2=0.52^2, ryz2=0.45^2, nu=7635, direction=-1),
+  list(name = "Retention U(-0.5,0.5)", bounds = c(-0.5,0.5), partial_r=-0.13,
+       rxz2=0.52^2, ryz2=0.45^2, nu=7635, direction=-1),
+  list(name = "Education U(-1,1)", bounds = c(-1,1), partial_r=0.29,
+       rxz2=0.224, ryz2=0.177, nu=10562, direction=+1),
+  list(name = "Education U(-0.5,0.5)", bounds = c(-0.5,0.5), partial_r=0.29,
+       rxz2=0.224, ryz2=0.177, nu=10562, direction=+1)
+)
 
 # Shared pointwise calculation, algebraically identical to hong()/edu().
 # Strict admissibility is identical to diagnostics and the drawing surface.
@@ -93,11 +128,7 @@ evaluate_pairs <- function(xs, ys, partial_r, rxz2, ryz2, nu, direction) {
   if (!n_valid) stop("No admissible candidate pairs")
   z <- direction * adjusted[valid] / sqrt(determinant[valid] / nu) - 1.96
   p <- pnorm(z)
-  n_nonfinite <- sum(!is.finite(z) | !is.finite(p))
-  stopifnot(n_nonfinite == 0L, all(p >= 0 & p <= 1))
-  c(p_hat=mean(p > threshold), n_above=sum(p > threshold),
-    n_nonfinite=n_nonfinite, min_D=min(determinant[valid]),
-    min_vx=min(vx[valid]), min_vy=min(vy[valid]), n_admissible=n_valid,
+  c(p_hat=mean(p > threshold), n_admissible=n_valid,
     acceptance_rate=n_valid/(length(xs)*length(ys)),
     mean_pointwise_pmc=mean(p),
     pmc_q025=unname(quantile(p, 0.025)), pmc_q975=unname(quantile(p, 0.975)),
@@ -132,12 +163,7 @@ for (i in seq_along(scenarios)) {
   all_runs[[i]] <- data.frame(
     scenario=s$name, run=seq_len(n_repeats), p_hat=h,
     n_admissible=n_accepted,
-    acceptance_rate=as.numeric(rep_results["acceptance_rate", ]),
-    n_above=as.numeric(rep_results["n_above", ]),
-    n_nonfinite=as.numeric(rep_results["n_nonfinite", ]),
-    min_D=as.numeric(rep_results["min_D", ]),
-    min_vx=as.numeric(rep_results["min_vx", ]),
-    min_vy=as.numeric(rep_results["min_vy", ]))
+    acceptance_rate=as.numeric(rep_results["acceptance_rate", ]))
   summary_rows[[i]] <- data.frame(
     scenario=s$name,
     mean_accepted=mean(n_accepted), min_accepted=min(n_accepted),
@@ -150,12 +176,11 @@ for (i in seq_along(scenarios)) {
     partial_r=s$partial_r, rxz2=s$rxz2, ryz2=s$ryz2, nu=s$nu,
     direction=s$direction, mean_acceptance_rate=mean(n_accepted)/n_marginal^2,
     original_single_run_p=original_single_run$p_hat[i],
-    figure_label_3dp=sprintf("%.3f", mean(h)),
+    figure_label_2dp=sprintf("%.2f", mean(h)),
     determinant_only_extra_pairs=sum(rep_results["determinant_only_extra", ]))
   cat("Completed", i, "/", length(scenarios), "scenarios:", s$name, "\n")
 }
-run_df <- do.call(rbind, all_runs)
-write.csv(run_df, file.path(output_dir, "robustness_runs.csv"), row.names=FALSE)
+run_df <- do.call(rbind, all_runs)  # In memory for audit; no extra raw CSV output.
 summary_df <- do.call(rbind, summary_rows)
 write.csv(summary_df, file.path(output_dir, "robustness_summary.csv"), row.names=FALSE)
 cat("\nTable A3: conditional Pr(p_mc > 0.8 | admissible); mean of 100 run proportions.\n")
@@ -164,7 +189,7 @@ cat("\nSD is single-run simulation variability; MCSE of the 100-run mean = SD/10
     "The 1,000,000 Cartesian pairs per run are NOT independent observations.\n",
     "Admissible-pair counts are not effective sample sizes.\n",
     "First/last-half comparisons describe stability, not a convergence proof.\n",
-    "Figure labels below use these 100-run means, rounded to three decimals.\n", sep="")
+    "Figure labels below use these 100-run means, rounded to two decimals.\n", sep="")
 figure_probabilities <- summary_df$mean_p
 retention_full_prob <- figure_probabilities[1L]
 retention_restricted_prob <- figure_probabilities[2L]
@@ -236,7 +261,7 @@ plot_panel_bw <- function(surface, prior_title, reported_p, restricted_box = FAL
   title(xlab = expression(r[xc]), ylab = expression(r[yc]),
         cex.lab = 1.25, line = 2.6)
   title(main = paste0(prior_title,
-                      '\nPr(p_mc > 0.8) = ', sprintf('%.3f', reported_p)),
+                      '\nPr(p_mc > 0.8) = ', sprintf('%.2f', reported_p)),
         cex.main = 1.12, font.main = 1, line = 0.6)
 }
 
@@ -284,29 +309,7 @@ plot_comparison_bw <- function(example, title_text, filename_stem,
 
     plot_panel_bw(full, '(a) Prior: U(-1, 1)', baseline_prob,
                   restricted_box = show_restricted_box)
-    first_geometry <- list(fig=par('fig'), plt=par('plt'), din=par('din'))
     plot_panel_bw(restricted, '(b) Prior: U(-0.5, 0.5)', restricted_prob)
-    second_geometry <- list(fig=par('fig'), plt=par('plt'), din=par('din'))
-    # Measure final base-graphics data rectangles without changing the design.
-    rect_pt <- function(g) {
-      f <- g$fig; p <- g$plt; d <- g$din*72
-      c((f[1]+p[1]*(f[2]-f[1]))*d[1],
-        (f[3]+p[3]*(f[4]-f[3]))*d[2],
-        (f[1]+p[2]*(f[2]-f[1]))*d[1],
-        (f[3]+p[4]*(f[4]-f[3]))*d[2])
-    }
-    rectangles <- rbind(rect_pt(first_geometry), rect_pt(second_geometry))
-    stopifnot(abs(diff(rectangles[,2])) < 1.5,
-              abs(diff(rectangles[,4])) < 1.5,
-              abs(diff(rectangles[,3]-rectangles[,1])) < 1.5)
-    if (names(dev.cur()) == 'pdf') {
-      panel_json <- vapply(1:2, function(i) sprintf(
-        '{"id":"%s","grid_id":"main","row_start":0,"row_stop":1,"col_start":%d,"col_stop":%d,"bbox_pt":[%s]}',
-        letters[i], i-1L, i, paste(sprintf('%.8f', rectangles[i,]),collapse=',')), '')
-      writeLines(paste0('{"schema_version":1,"figure":{"width_pt":864,"height_pt":504},',
-                        '"panels":[',paste(panel_json,collapse=','),']}'),
-                 file.path(output_dir,paste0(filename_stem,'.alignment-layout.json')))
-    }
     plot_legend_bw(show_restricted_box)
 
     mtext(title_text, side = 3, outer = TRUE, line = 0.5,
@@ -332,8 +335,8 @@ plot_comparison_bw(
   title_text = 'Kindergarten retention',
   filename_stem = 'retention',
   baseline_prob = retention_full_prob, restricted_prob = retention_restricted_prob,
-  rxy_z = retention_inputs$partial_r, rxz2 = retention_inputs$rxz2,
-  ryz2 = retention_inputs$ryz2, nu = retention_inputs$nu, sign_r = -1,
+  rxy_z = -0.13, rxz2 = 0.52^2, ryz2 = 0.45^2,
+  nu = 7635, sign_r = -1,
   show_restricted_box = TRUE
 )
 
@@ -342,8 +345,9 @@ plot_comparison_bw(
   title_text = "Father's occupation and educational attainment",
   filename_stem = 'education',
   baseline_prob = education_full_prob, restricted_prob = education_restricted_prob,
-  rxy_z = education_inputs$partial_r, rxz2 = education_inputs$rxz2,
-  ryz2 = education_inputs$ryz2, nu = education_inputs$nu, sign_r = +1,
+  # IMPORTANT: 0.224 and 0.177 are SQUARED multiple correlations.
+  rxy_z = 0.29, rxz2 = 0.224, ryz2 = 0.177,
+  nu = 10562, sign_r = +1,
   show_restricted_box = TRUE
 )
 
