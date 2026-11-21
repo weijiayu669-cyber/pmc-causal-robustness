@@ -6,13 +6,14 @@ This repository contains the complete R implementation for the two illustrative 
 
 ## Run the analysis
 
-Only base R is required. The reference results were verified with R 4.5.0 on macOS.
+Only base R is required. The 2026-11-21 audit results were run with R 4.5.0 (2025-04-11), aarch64-apple-darwin20, on macOS 27.0.1. Analysis uses only base/recommended R packages: stats, graphics, grDevices, utils, datasets, methods and base (4.5.0); compiler/tools 4.5.0 appear in validation sessionInfo(). No contributed R packages are needed.
 
 Download the repository or clone it, open a terminal in the repository directory, and run:
 
 ```sh
 Rscript robustness.R
 Rscript minimum_effect.R
+Rscript retention_audit.R
 ```
 
 Alternatively, in R or RStudio:
@@ -66,26 +67,41 @@ p_mc = Phi(direction * q / sqrt(D / nu) - 1.96)
 | Example | Partial correlation | rxz2 | ryz2 | nu | Direction |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Retention | -0.13 | 0.2704 | 0.2025 | 7,635 | -1 |
-| Education | 0.29 | 0.224 | 0.177 | 10,562 | +1 |
+| Education | 0.2984613894645406 | 0.22352057677494624 | 0.17686271729239786 | 10,562 | +1 |
 
 ## Reference results for Appendix Table A3
 
 | Scenario | Mean admissible pairs | Mean probability | SD across 100 runs | MCSE of 100-run mean | First 50 mean | Last 50 mean |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Retention U(-1,1) | 594,284.2 | 0.678886 | 0.008725906 | 0.000872591 | 0.679303 | 0.678469 |
-| Retention U(-0.5,0.5) | 1,000,000 | 0.836594 | 0.006523652 | 0.000652365 | 0.836014 | 0.837174 |
-| Education U(-1,1) | 601,030.7 | 0.820084 | 0.007962974 | 0.000796297 | 0.820310 | 0.819859 |
-| Education U(-0.5,0.5) | 1,000,000 | 0.995132 | 0.000579725 | 0.000057973 | 0.995075 | 0.995189 |
+| Retention U(-1,1) | 594284.2 | 0.678885694346 | 0.00872590642718 | 0.000872590642718 | 0.679302751842 | 0.678468636851 |
+| Retention U(-0.5,0.5) | 1000000 | 0.83659422 | 0.00652365187216 | 0.000652365187216 | 0.83601426 | 0.83717418 |
+| Education U(-1,1) | 599629.39 | 0.825283992413 | 0.00781046584493 | 0.000781046584493 | 0.825522876062 | 0.825045108765 |
+| Education U(-0.5,0.5) | 1000000 | 0.99697109 | 0.000397324285412 | 3.97324285412e-05 | 0.99692492 | 0.99701726 |
 
 The final estimate is the arithmetic mean of 100 per-run conditional proportions. SD measures variability across complete runs. MCSE of the 100-run mean is SD/sqrt(100), not SD. Cross-combined pairs share marginal draws and are not independent Bernoulli observations; admissible-pair counts are not effective independent sample sizes. First/last-half comparisons are descriptive stability diagnostics, not a proof of convergence.
 
-Figure labels use these 100-run means rounded to two decimal places: 0.68, 0.84, 0.82, and 1.00. The last value is rounded from 0.995132 and does not mean exactly 100%. The earlier restricted-prior retention value 0.847420 was a single-run estimate; the final repeated-run mean is 0.83659422.
+Figure labels use three decimal places: 0.679, 0.837, 0.825 and 0.997. Education changed from 0.820084 / 0.995132 to 0.825283992413386 / 0.99697109 after correcting the multi-control cross term. The restricted-prior result is below one; rounding is never evidence of exactly 100%. The earlier restricted-prior retention value 0.847420 was a single run; its repeated-run mean remains 0.83659422.
+
+## Education calculation correction
+
+`inputs.R` computes from Frank (2000), Table 1: `rxy=.427`, `rXZ=c(-.437,-.289)`, `rYZ=c(-.317,-.350)` and `RZZ=matrix(c(1,.263,.263,1),2)`. The cross term is `crossprod(rXZ, solve(RZZ,rYZ))`, **not** the product of the two multiple correlations. The squared multiple correlations are the corresponding quadratic forms. Thus:
+
+```text
+cross = 0.18838965505016483
+rxz2 = 0.22352057677494624
+ryz2 = 0.17686271729239786
+partial_r = (rxy-cross)/sqrt((1-rxz2)*(1-ryz2)) = 0.2984613894645406
+T(0,0) = partial_r*sqrt(10562/(1-partial_r^2)) = 32.138154101648
+```
+
+The text may display 0.30; calculations and figures use unrounded matrix results. Independent checks use a positive-definite full correlation matrix, its precision matrix, regression residuals and direct OLS. `inputs.R` also centralizes unchanged Retention inputs/scales for A.5 and A.6.
+
 
 ## Appendix A.6 effect-size threshold replacement and Table A4
 
 Run `Rscript minimum_effect.R` (or `Rscript minimum_effect.R output_directory`) to generate `minimum_effect_runs.csv` and `minimum_effect_summary.csv`. This retention-only analysis replaces the original PMC critical value `d_alpha = 1.96` with the dimensionless, scenario-specific threshold `d_delta = Delta_min / SE_f`. The original NHST calculation remains the comparison baseline.
 
-The supplied source for the reading-score standard deviation is Hong & Raudenbush (2005), Table 2A, spring treatment-year reading score: `SD(Y) = 13.53`. Motivated by [Kraft (2020)](https://doi.org/10.3102/0013189X20912798), the code computes `delta_min <- 0.20 * 13.53`, giving an absolute threshold of 2.706 reading-score points without pre-rounding. The working scales are `s_x = 0.240548` and `s_y = 13.53`. The threshold is divided by the full-model standard error separately for each admissible confounding pair; it is not inserted directly into the standardized PMC formula.
+The supplied source for the reading-score standard deviation is Hong & Raudenbush (2005), Table 2 (p. 210), spring treatment-year reading score: `SD(Y) = 13.53`. Motivated by [Kraft (2020)](https://doi.org/10.3102/0013189X20912798), the code computes `delta_min <- 0.20 * 13.53`, giving an absolute threshold of 2.706 reading-score points without pre-rounding. The working scales remain `s_x = 0.240548` and `s_y = 13.53`. The published 13.53 is for the broader reading sample (N=11,797), not an identified at-risk or mixed-model residual SD; here it is an illustrative working scale. The threshold is divided by the full-model standard error separately for each admissible confounding pair; it is not inserted directly into the standardized PMC formula.
 
 With `a = r_xc`, `b = r_yc`, and the existing assumption that the omitted confounder is orthogonal to observed covariates:
 
@@ -149,11 +165,43 @@ Within each treatment-by-stratum cell, propensity-score logits and reading score
 
 ## Reproducibility details
 
-The script preserves the mathematical formulas, rounded working inputs, degrees of freedom, and random-number order of the supplied implementations. It uses Mersenne-Twister / Inversion / Rejection and two seed-123 streams:
+The six-step design, 1,000 draws per marginal, 100 repetitions, 1.96, 0.8, two uniform priors, and original RNG ordering are retained. Education inputs are now computed without pre-rounding. Mersenne-Twister / Inversion / Rejection uses seed 123: reconstruction retains its initial discarded `mcdat()` call; the four PMC scenarios reset seed 123 once and proceed in Retention-full, Retention-restricted, Education-full, Education-restricted order. A.6 resets once and continues between its priors.
 
-- The correlation reconstruction and original single-run comparisons follow the original figure script, including its initial `mcdat()` call before the 1,000 recorded simulations.
-- The four 100-run scenarios restart from `set.seed(123)`, matching the original standalone diagnostics script.
+`robustness_runs.csv` saves every repetition and finite-value diagnostics. All admissible configurations are checked, without silently dropping nonfinite values. Two complete runs produced byte-identical robustness CSVs and PNGs; A.6 CSVs and standalone diagnostic CSVs were also byte identical. PDF metadata timestamps can differ. `reproducibility.txt` records sessionInfo and validation commands/results.
 
-The merged implementation was checked against all 1,000 recorded correlation simulations and all 400 scenario repetitions. A separate standalone run reproduced the summary CSV and PNG files exactly on the reference machine. Rendering may differ across operating systems or graphics devices.
+## Retention source and covariance audit
 
-All numerical inputs needed to run the examples are embedded in the script; no individual-level study data are distributed. The stratum-specific summary inputs are retained as supplied. Their exact table numbering and the reading-outcome versus propensity-score sample counts require confirmation against the final source publication; this repository does not change the original N=7,639 or residual degrees of freedom. Numerical repeatability does not establish equivalence to the source study's multilevel estimator.
+See [SOURCE_AUDIT.md](SOURCE_AUDIT.md), [AUDIT_REPORT.md](AUDIT_REPORT.md), `retention_source_cells.csv` (all 30 source cells including the empty promoted stratum 15), `retention_cell_source_audit.csv` and `retention_diagnostics.csv`.
+
+All 29 nonempty Table 8 logit count/mean/SD inputs match the old generator, and all Table 9 reading means/SDs match. The old generator combines Table 8 counts (471 retained + 7,168 promoted) with Table 9 outcome summaries (469 + 7,139). The 31-person mismatch affects nine cells. The reference is preserved as a synthetic full-count scenario, requiring missing readings to share the observed cell moments. The outcome-matched scenario uses N=7,608, but still assumes the Table 8 logit moments apply to the reading-observed subset. Neither reconstructs raw data.
+
+`retention_reconstruction.R` exposes `mcdat(rho_within=0, sample="reference", return_data=FALSE)`. `sample="outcome_matched"` changes counts; a configurable common rho controls the unidentified within-cell covariance through correlated normal residuals. Published marginal means/SDs are distribution parameters; finite synthetic cells need not match them exactly. Zero rho preserves original draws and RNG state bit for bit. The 1–29 `strata` codes index cells; they are not the original 15 shared strata and must not be used as controls that encode treatment.
+
+`Rscript retention_audit.R` uses 1,000 synthetic datasets per count/rho scenario and seed 123, resetting per scenario for common latent normals within each count design. Its fixed rho grid is -0.50, -0.25, 0, 0.25, 0.50. This is separate from the 100-repetition PMC calculation. The audit has no initial discarded simulation; hence its reference means differ slightly from the legacy 1,000-simulation stream. CSVs distinguish mean absolute discrepancy from absolute discrepancy of mean T, and include across-dataset SD, MCSE=SD/sqrt(1000), and analytic mixture moments.
+
+Formal inputs stay `partial_r=-.13`, `rxz2=.2704`, `ryz2=.2025`, `nu=7635`: T(0,0)=-11.456422589690, absolute discrepancy 1.813577410310 from published -13.27. Reconstruction diagnostics use augmented-model nu=N-4 (7635 or 7604); the reduced OLS y~x+z instead has N-3 df. Neither df reproduces the published mixed-model estimator. The original Equation 4 adjusts 14 shared-stratum indicators, continuous propensity logit, and assessment duration, with correlated school random intercept and retention slope. Missing joint moments, school membership and duration are not available from these marginal tables. A rho scenario near -13.27 does not identify true covariance or validate this approximation; no rho or partial r was fitted to that t.
+
+The original article was audited through its [complete text mirror](https://www.academia.edu/29274731/Effects_of_Kindergarten_Retention_Policy_on_Childrens_Cognitive_Growth_in_Reading_and_Mathematics); the original typeset PDF could not be visually checked. This access limit and unresolved identification assumptions are retained in the source audit. No original individual-level data are distributed or claimed recovered.
+
+## Full validation commands
+
+From the repository root (repeat run writes to a separate copied source directory):
+
+```sh
+Rscript tests/calculation_audit.R
+Rscript tests/retention_audit.R
+Rscript tests/minimum_effect.R
+Rscript robustness.R
+mkdir -p ../robustness-run2
+cp *.R ../robustness-run2/
+Rscript ../robustness-run2/robustness.R
+Rscript tests/robustness_results.R . ../robustness-run2
+Rscript minimum_effect.R ../a6-run1
+Rscript minimum_effect.R ../a6-run2
+Rscript tests/minimum_effect_results.R ../a6-run1 ../a6-run2
+Rscript retention_audit.R
+```
+
+Results tests independently replay all 400 PMC repetitions and all 200 A.6 repetitions, verify V, numerical finiteness, exceedance counts, means/SD/MCSE, and compare two complete runs. A.6 additionally uses FWL coefficient/SE and effect-scale exceedance events. Matrix/pointwise tests include boundaries and OLS checks. The per-run Cartesian pairs share marginal draws; no binomial MCSE is used.
+
+Figure 1/2 design remains the existing black-and-white base-R design, PDF plus 600-dpi PNG. Render-time panel geometry is saved in `*.alignment-layout.json`; both panels pass the 1.5-point alignment test, rendered PDF text is at least 9 pt, and collision audits found zero failures/warnings. Generic Nature static checks request SVG/TIFF/Cairo devices; these format recommendations do not replace the explicitly requested existing PDF/PNG design. No journal-specific submission compliance is claimed.

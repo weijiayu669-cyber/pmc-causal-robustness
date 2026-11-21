@@ -1,0 +1,41 @@
+R version 4.5.0 (2025-04-11)
+Platform: aarch64-apple-darwin20
+Running under: macOS 27.0.1
+
+Matrix products: default
+BLAS:   /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRblas.0.dylib 
+LAPACK: /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/lib/libRlapack.dylib;  LAPACK version 3.12.1
+
+locale:
+[1] C.UTF-8/C.UTF-8/C.UTF-8/C/C.UTF-8/C.UTF-8
+
+time zone: Asia/Shanghai
+tzcode source: internal
+
+attached base packages:
+[1] stats     graphics  grDevices utils     datasets  methods   base     
+
+loaded via a namespace (and not attached):
+[1] compiler_4.5.0
+
+Audit date: 2026-11-21 Asia/Shanghai
+seed 123; RNGkind Mersenne-Twister / Inversion / Rejection
+Analysis dependencies: base R only. QA: Python PyMuPDF 2.1 (not needed for analyses).
+Executed commands, from checkout root:
+Rscript tests/calculation_audit.R
+Rscript tests/retention_audit.R
+Rscript tests/minimum_effect.R
+Rscript robustness.R
+Rscript ../robustness-run2/robustness.R
+Rscript tests/robustness_results.R . ../robustness-run2
+Rscript minimum_effect.R ../a6-run1
+Rscript minimum_effect.R ../a6-run2
+Rscript tests/minimum_effect_results.R ../a6-run1 ../a6-run2
+Rscript retention_audit.R
+Rscript -e "source('retention_audit.R'); run_retention_audit('../retention-audit-check')"
+
+All five R test entrypoints passed. Full robustness and A6 CSVs and
+standalone diagnostics were byte identical across complete runs.
+All 400 main and 200 A6 repetitions independently replayed.
+PDF geometry, text floor and collision audits passed; generic static
+SVG/TIFF/Cairo recommendations waived to preserve requested PDF/PNG design.

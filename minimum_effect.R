@@ -4,37 +4,40 @@
 # The original NHST baseline, admissibility, draws and RNG are unchanged.
 # Outputs: minimum_effect_runs.csv and minimum_effect_summary.csv.
 
+script_dir <- local({
+  files <- Filter(function(x) is.character(x) && length(x)==1,
+                  lapply(sys.frames(),function(x) x$ofile))
+  arg <- grep('^--file=',commandArgs(FALSE),value=TRUE)
+  self <- if(length(files)) tail(files,1)[[1]] else if(length(arg)) sub('^--file=','',arg[1]) else NULL
+  if(is.null(self)) getwd() else dirname(normalizePath(self))
+})
+source(file.path(script_dir, 'inputs.R'))
+extra <- if (sys.nframe()) character() else commandArgs(TRUE)
+output_dir <- if(length(extra)) extra[1] else script_dir
+
 pointwise <- function(a, b, scale_ratio, delta_min) {
   # C is orthogonal to observed Z, as in the existing working OLS model.
-  q <- -0.13*sqrt((1-0.52^2)*(1-(-0.45)^2))
-  vx <- 1-0.52^2-a*a
-  vy <- 1-(-0.45)^2-b*b
+  q <- retention_inputs$partial_r*sqrt((1-retention_inputs$rxz2)*(1-retention_inputs$ryz2))
+  vx <- 1-retention_inputs$rxz2-a*a
+  vy <- 1-retention_inputs$ryz2-b*b
   A <- q-a*b
   D <- vx*vy-A*A
   valid <- vx>0 & vy>0 & D>0
   tt <- se_f <- d_delta <- p0 <- p_delta <- rep(NA_real_,length(A))
-  tt[valid] <- A[valid]/sqrt(D[valid]/7635)
-  se_f[valid] <- scale_ratio*sqrt(D[valid]/7635)/vx[valid]
+  tt[valid] <- A[valid]/sqrt(D[valid]/retention_inputs$nu)
+  se_f[valid] <- scale_ratio*sqrt(D[valid]/retention_inputs$nu)/vx[valid]
   d_delta[valid] <- delta_min/se_f[valid]
   p0[valid] <- pnorm(-tt[valid]-1.96)
   p_delta[valid] <- pnorm(-tt[valid]-d_delta[valid])
   list(valid=valid,t=tt,se_f=se_f,d_delta=d_delta,p_zero=p0,p_delta=p_delta,D=D)
 }
 
-output_dir <- local({
-  files <- Filter(function(x) is.character(x) && length(x)==1,
-                  lapply(sys.frames(),function(x) x$ofile))
-  arg <- grep('^--file=',commandArgs(FALSE),value=TRUE)
-  self <- if(length(files)) tail(files,1)[[1]] else if(length(arg)) sub('^--file=','',arg[1]) else NULL
-  extra <- if(length(files)) character() else commandArgs(TRUE)
-  if(length(extra)) extra[1] else if(is.null(self)) getwd() else dirname(normalizePath(self))
-})
 dir.create(output_dir,recursive=TRUE,showWarnings=FALSE)
-# Supplied source: Hong & Raudenbush (2005), Table 2A, reading SD=13.53.
+# Working scale: Hong & Raudenbush (2005), Table 2, broader reading SD=13.53.
 # Kraft (2020) motivates the illustrative 0.20 SD absolute threshold.
-sx <- 0.240548
-sy <- 13.53
-delta_min <- 0.20 * 13.53
+sx <- retention_inputs$sx
+sy <- retention_inputs$sy
+delta_min <- 0.20 * sy
 RNGkind('Mersenne-Twister','Inversion','Rejection')
 set.seed(123)
 # Match A.5: reset once before the full prior, then continue into restricted.

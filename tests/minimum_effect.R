@@ -1,5 +1,6 @@
 # Run from repository root: Rscript tests/minimum_effect.R
 # Load the real evaluator and cutoff without running the Monte Carlo driver.
+source('inputs.R')
 exprs <- as.list(parse('minimum_effect.R'))
 for (name in c('pointwise','sx','sy','delta_min')) {
   definition <- Filter(function(e) is.call(e) && identical(e[[1]],as.name('<-')) &&
